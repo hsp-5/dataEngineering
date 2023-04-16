@@ -1,0 +1,52 @@
+
+#Generating the date-details like month, month_number etc.
+
+beginDate = '2010-01-01'
+endDate = '2099-12-31'
+df0 = (spark.sql(f"select explode(sequence(to_date('{beginDate}'), to_date('{endDate}'), interval 1 day)) as date") )
+df0 = df0.withColumn("date_id2",df0["date"].cast(StringType()))
+df0 = df0.withColumn("date_id",sf.regexp_replace(df0["date_id2"], "-", ""))
+df0 = df0.withColumn("date_id",df0.date_id.cast(IntegerType()))
+df0 = df0.select("date","date_id")
+df0 = df0.withColumn("year_num",sf.year(df0.date))
+df0 = df0.withColumn("month_num",sf.month(df0.date))
+df0 = df0.withColumn("month",sf.when(df0.month_num == 1,"January").when(df0.month_num == 2,"February").when(df0.month_num == 3,"March").when(df0.month_num == 4,"April").when(df0.month_num == 5,"May"). \
+                     when(df0.month_num == 6,"June").when(df0.month_num == 7,"July").when(df0.month_num == 8,"August").when(df0.month_num == 9,"September").when(df0.month_num == 10,"October"). \
+                     when(df0.month_num == 11,"November").when(df0.month_num == 12,"December"))
+df0 = df0.withColumn("month_cd",sf.when(df0.month_num == 1,"Jan").when(df0.month_num == 2,"Feb").when(df0.month_num == 3,"Mar").when(df0.month_num == 4,"Apr").when(df0.month_num == 5,"May"). \
+                     when(df0.month_num == 6,"Jun").when(df0.month_num == 7,"Jul").when(df0.month_num == 8,"Aug").when(df0.month_num == 9,"Sep").when(df0.month_num == 10,"Oct").when(df0.month_num == 11,"Nov"). \
+                     when(df0.month_num == 12,"Dec"))
+df0 = df0.withColumn("day_of_month",sf.dayofmonth(df0.date))
+df0 = df0.withColumn("weekday_num",sf.dayofweek(df0.date))
+df0 = df0.withColumn("weekday_nm",sf.when(df0.weekday_num==1,"Sunday").when(df0.weekday_num==7,"Saturday").when(df0.weekday_num==2,"Monday").when(df0.weekday_num==3,"Tuesday").when(df0.weekday_num==4,"Wednesday"). \
+                     when(df0.weekday_num==5,"Thursday").when(df0.weekday_num==6,"Friday"))
+df0 = df0.withColumn("weeknumber_month",sf.date_format(sf.col("date"),"W"))
+df0 = df0.withColumn("weeknumber_year",sf.weekofyear(df0.date))
+df0 = df0.withColumn("quarter_num",sf.quarter(df0.date))
+df0 = df0.withColumn("quarter_nm",sf.when(df0.quarter_num==1,"Q1").when(df0.quarter_num==2,"Q2").when(df0.quarter_num==3,"Q3").when(df0.quarter_num==4,"Q4"))
+df0 = df0.withColumn("fy_ind_yr",sf.when((df0.month_num>3) & (df0.month_num<13),sf.concat(sf.lit("FY"),sf.col("year_num"),sf.lit("-"),sf.lit((df0["year_num"]+1-2000)))). \
+                     otherwise(sf.concat(sf.lit("FY"),sf.lit((df0["year_num"]-1)),sf.lit("-"),sf.lit((df0["year_num"]-2000)))))
+df0 = df0.withColumn("fy_grp_yr",sf.when((df0.month_num>6) & (df0.month_num<13),sf.concat(sf.lit("FY"),sf.col("year_num"),sf.lit("-"),sf.lit((df0["year_num"]+1-2000)))). \
+                     otherwise(sf.concat(sf.lit("FY"),sf.lit((df0["year_num"]-1)),sf.lit("-"),sf.lit((df0["year_num"]-2000)))))
+df0 = df0.withColumn("fy_grp_month",sf.when(df0.month_num==1,7).when(df0.month_num==2,8).when(df0.month_num==3,9).when(df0.month_num==4,10).when(df0.month_num==5,11). \
+                     when(df0.month_num==6,12).when(df0.month_num==7,1).when(df0.month_num==8,2).when(df0.month_num==9,3).when(df0.month_num==10,4).when(df0.month_num==11,5).when(df0.month_num==12,6))
+df0 = df0.withColumn("month_yr_cd",sf.concat(df0.month_cd,sf.lit("-"),sf.substring(df0.date_id,3,2)))
+df0 = df0.withColumn("fy_ind_quarter",sf.when(df0.quarter_num==1,"Q4").when(df0.quarter_num==2,"Q1").when(df0.quarter_num==3,"Q2").when(df0.quarter_num==4,"Q3"))
+df0 = df0.withColumn("fy_ind_month",sf.when(df0.month_num==1,10).when(df0.month_num==2,11).when(df0.month_num==3,12).when(df0.month_num==4,1).when(df0.month_num==5,2). \
+                     when(df0.month_num==6,3).when(df0.month_num==7,4).when(df0.month_num==8,5).when(df0.month_num==9,6).when(df0.month_num==10,7).when(df0.month_num==11,8).when(df0.month_num==12,9))
+df0 = df0.withColumn("fy_ind_quarter_num",sf.when((df0.month_num==1) | (df0.month_num==2) | (df0.month_num==3),4).when((df0.month_num==4) | (df0.month_num==5) | (df0.month_num==6),1). \
+                     when((df0.month_num==7) | (df0.month_num==8) | (df0.month_num==9),2).when((df0.month_num==10) | (df0.month_num==11) | (df0.month_num==12),3))
+df0 = df0.withColumn("fy_ind_month_nm",df0["month"])
+df0 = df0.withColumn("fy_ind_month_cd",df0["month_cd"])
+df0 = df0.withColumn("fy_month_yr",df0["month_yr_cd"])
+df0 = df0.withColumn("fy_grp_quarter",sf.when(df0.quarter_num==1,"Q3").when(df0.quarter_num==2,"Q4").when(df0.quarter_num==3,"Q1").when(df0.quarter_num==4,"Q2"))
+df0 = df0.withColumn("fy_grp_quarter_num",sf.when((df0.month_num==1) | (df0.month_num==2) | (df0.month_num==3),3).when((df0.month_num==4) | (df0.month_num==5) | (df0.month_num==6),4). \
+                     when((df0.month_num==7) | (df0.month_num==8) | (df0.month_num==9),1).when((df0.month_num==10) | (df0.month_num==11) | (df0.month_num==12),2))
+df0 = df0.withColumn("fy_grp_month_nm",df0["month"])
+df0 = df0.withColumn("fy_grp_month_cd",df0["month_cd"])
+df0 = df0.withColumn("fy_grp_month_yr",df0["month_yr_cd"])
+df0.show()
+
+df0 = df0.select("date_id","date","year_num","month_num","month","month_cd","day_of_month","weekday_num","weekday_nm","weeknumber_month","weeknumber_year","quarter_num","quarter_nm","fy_ind_yr","fy_grp_yr", \
+"fy_grp_month","month_yr_cd","fy_ind_quarter","fy_ind_month","fy_ind_quarter_num","fy_ind_month_nm","fy_ind_month_cd","fy_month_yr","fy_grp_quarter","fy_grp_quarter_num","fy_grp_month_nm","fy_grp_month_cd", \
+"fy_grp_month_yr")
